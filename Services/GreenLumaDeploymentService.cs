@@ -10,9 +10,6 @@ namespace GreenLuma_Manager.Services;
 public static partial class GreenLumaDeploymentService
 {
     private const string ArchivePassword = "cs.rin.ru";
-    private const string FullStealthMarkerName = ".glm-full-stealth";
-    private const string User32BackupName = "user32.dll.glm-backup";
-    private const string AppListBackupName = "AppList.glm-backup";
 
     [GeneratedRegex(@"GreenLuma_(\d{4})_", RegexOptions.IgnoreCase)]
     private static partial Regex YearRegex();
@@ -21,15 +18,14 @@ public static partial class GreenLumaDeploymentService
         string archivePath,
         string destinationPath,
         GreenLumaLaunchMode mode,
-        FullStealthVariant fullStealthVariant,
         Action<string>? progressCallback = null)
     {
-        return Task.Run(() => Deploy(archivePath, destinationPath, mode, fullStealthVariant, progressCallback));
+        return Task.Run(() => Deploy(archivePath, destinationPath, mode, progressCallback));
     }
 
     private static GreenLumaDeploymentResult Deploy(
         string archivePath, string destinationPath, GreenLumaLaunchMode mode,
-        FullStealthVariant fullStealthVariant, Action<string>? progressCallback)
+        Action<string>? progressCallback)
     {
         var result = new GreenLumaDeploymentResult();
         var tempDir = Path.Combine(Path.GetTempPath(), "GLM_Deploy_" + Guid.NewGuid().ToString("N"));
@@ -54,7 +50,7 @@ public static partial class GreenLumaDeploymentService
             var sourceDir = FindSourceDirectory(tempDir);
 
             if (mode == GreenLumaLaunchMode.FullStealth)
-                return DeployFullStealth(sourceDir, destinationPath, fullStealthVariant, result, progressCallback);
+                return DeployFullStealth(sourceDir, destinationPath, result, progressCallback);
 
             var availableFiles = CollectAvailableFiles(sourceDir);
             var year = DetectYear(availableFiles.Keys);
@@ -103,7 +99,7 @@ public static partial class GreenLumaDeploymentService
     }
 
     private static GreenLumaDeploymentResult DeployFullStealth(
-        string sourceDir, string destinationPath, FullStealthVariant variant,
+        string sourceDir, string destinationPath,
         GreenLumaDeploymentResult result, Action<string>? progressCallback)
     {
         var stealthDir = string.Equals(Path.GetFileName(sourceDir), "StealthMode", StringComparison.OrdinalIgnoreCase)
@@ -139,72 +135,6 @@ public static partial class GreenLumaDeploymentService
         result.Success = true;
         progressCallback?.Invoke("Done.");
         return result;
-    }
-
-    public static bool StageFullStealthForLaunch(Config config)
-    {
-        var sourceDllName = config.FullStealthVariant == FullStealthVariant.SteamFamilies
-            ? "user32SF.dll"
-            : "user32.dll";
-        var sourceDll = Path.Combine(config.GreenLumaPath, sourceDllName);
-        var sourceAppList = Path.Combine(config.GreenLumaPath, "AppList");
-        if (!File.Exists(sourceDll) || !Directory.Exists(sourceAppList)) return false;
-
-        RemoveFullStealthDeployment(config.SteamPath);
-
-        var markerPath = Path.Combine(config.SteamPath, FullStealthMarkerName);
-        var destinationDll = Path.Combine(config.SteamPath, "user32.dll");
-        var dllBackup = Path.Combine(config.SteamPath, User32BackupName);
-        var destinationAppList = Path.Combine(config.SteamPath, "AppList");
-        var appListBackup = Path.Combine(config.SteamPath, AppListBackupName);
-
-        try
-        {
-            if (File.Exists(destinationDll) && !File.Exists(dllBackup))
-                File.Move(destinationDll, dllBackup);
-            if (Directory.Exists(destinationAppList) && !Directory.Exists(appListBackup))
-                Directory.Move(destinationAppList, appListBackup);
-
-            File.WriteAllText(markerPath, config.FullStealthVariant.ToString());
-            File.Copy(sourceDll, destinationDll, true);
-            CopyDirectory(sourceAppList, destinationAppList);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Logger.Error(ex, "GreenLumaDeploymentService.StageFullStealth");
-            RemoveFullStealthDeployment(config.SteamPath);
-            return false;
-        }
-    }
-
-    public static void RemoveFullStealthDeployment(string steamPath)
-    {
-        if (string.IsNullOrWhiteSpace(steamPath)) return;
-
-        var markerPath = Path.Combine(steamPath, FullStealthMarkerName);
-        if (!File.Exists(markerPath)) return;
-
-        var destinationDll = Path.Combine(steamPath, "user32.dll");
-        var backupPath = Path.Combine(steamPath, User32BackupName);
-        var destinationAppList = Path.Combine(steamPath, "AppList");
-        var appListBackup = Path.Combine(steamPath, AppListBackupName);
-        if (File.Exists(backupPath))
-        {
-            File.Copy(backupPath, destinationDll, true);
-            File.Delete(backupPath);
-        }
-        else if (File.Exists(destinationDll))
-        {
-            File.Delete(destinationDll);
-        }
-
-        if (Directory.Exists(destinationAppList))
-            Directory.Delete(destinationAppList, true);
-        if (Directory.Exists(appListBackup))
-            Directory.Move(appListBackup, destinationAppList);
-
-        File.Delete(markerPath);
     }
 
     private static bool TryExtractArchive(string archivePath, string extractDir, out string error)

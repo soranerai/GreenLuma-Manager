@@ -391,11 +391,15 @@ public partial class GreenLumaService
                 if (config.LaunchMode != GreenLumaLaunchMode.FullStealth)
                     return LaunchInjector(config);
 
-                if (!GreenLumaDeploymentService.StageFullStealthForLaunch(config))
+                if (!FullStealthService.TryStage(config, out var stagingError))
+                {
+                    if (!string.IsNullOrWhiteSpace(stagingError))
+                        Logger.Error(new InvalidOperationException(stagingError), "GreenLumaService.FullStealthStage");
                     return false;
+                }
 
                 if (LaunchSteam(config)) return true;
-                GreenLumaDeploymentService.RemoveFullStealthDeployment(config.SteamPath);
+                FullStealthService.Cleanup(config.SteamPath);
                 return false;
             }
             catch (Exception ex)
@@ -418,12 +422,7 @@ public partial class GreenLumaService
 
         if (config.LaunchMode == GreenLumaLaunchMode.FullStealth)
         {
-            var dllName = config.FullStealthVariant == FullStealthVariant.SteamFamilies
-                ? "user32SF.dll"
-                : "user32.dll";
-            return !string.IsNullOrWhiteSpace(config.GreenLumaPath) &&
-                   File.Exists(Path.Combine(config.GreenLumaPath, dllName)) &&
-                   Directory.Exists(Path.Combine(config.GreenLumaPath, "AppList"));
+            return FullStealthService.ValidateSource(config).Count == 0;
         }
 
         return File.Exists(Path.Combine(config.GreenLumaPath, "DLLInjector.exe"));
@@ -714,7 +713,7 @@ public partial class GreenLumaService
 
         var needsNoQuestionFile = RequiresNoQuestionFile(ResolveVersion(config, DetectVersion(config.GreenLumaPath)));
 
-        if (config.NoHook)
+        if (config.LaunchMode == GreenLumaLaunchMode.InjectorStealth)
             ApplyStealthModeSettings(settings, needsNoQuestionFile);
         else
             ApplyNormalModeSettings(settings, needsNoQuestionFile);
@@ -817,13 +816,7 @@ public partial class GreenLumaService
         var injectorPath = Path.Combine(config.GreenLumaPath, "DLLInjector.exe");
         if (config.LaunchMode == GreenLumaLaunchMode.FullStealth)
         {
-            var dllName = config.FullStealthVariant == FullStealthVariant.SteamFamilies
-                ? "user32SF.dll"
-                : "user32.dll";
-            if (!File.Exists(Path.Combine(config.GreenLumaPath, dllName)))
-                issues.Add($"Full Stealth source file {dllName} is missing.");
-            if (!Directory.Exists(Path.Combine(config.GreenLumaPath, "AppList")))
-                issues.Add("Full Stealth source AppList is missing.");
+            issues.AddRange(FullStealthService.ValidateSource(config));
         }
         else if (!File.Exists(injectorPath))
             issues.Add("DLLInjector.exe is missing. It was likely deleted by antivirus.");
@@ -1001,7 +994,7 @@ public partial class GreenLumaService
             finally
             {
                 if (config.LaunchMode == GreenLumaLaunchMode.FullStealth)
-                    GreenLumaDeploymentService.RemoveFullStealthDeployment(config.SteamPath);
+                    FullStealthService.Cleanup(config.SteamPath);
             }
         });
     }

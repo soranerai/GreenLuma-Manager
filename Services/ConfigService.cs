@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using GreenLuma_Manager.Models;
 using GreenLuma_Manager.Utilities;
 using Newtonsoft.Json.Linq;
@@ -9,6 +10,11 @@ namespace GreenLuma_Manager.Services;
 
 public class ConfigService
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
     private static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GLM_Manager");
@@ -72,7 +78,7 @@ public class ConfigService
     {
         try
         {
-            return JsonSerializer.Deserialize<Config>(json);
+            return JsonSerializer.Deserialize<Config>(json, SerializerOptions);
         }
         catch (Exception ex)
         {
@@ -126,6 +132,8 @@ public class ConfigService
     {
         try
         {
+            // Keep the legacy field synchronized for downgrade compatibility only.
+            config.NoHook = config.LaunchMode != GreenLumaLaunchMode.Normal;
             EnsureConfigDirectoryExists();
 
             var json = SerializeConfig(config);
@@ -139,7 +147,7 @@ public class ConfigService
 
     private static string SerializeConfig(Config config)
     {
-        return JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(config, SerializerOptions);
     }
 
     public static void WipeData()

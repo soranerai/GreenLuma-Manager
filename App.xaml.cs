@@ -62,7 +62,7 @@ public partial class App
         try
         {
             if (_config?.LaunchMode == GreenLumaLaunchMode.FullStealth)
-                GreenLumaDeploymentService.RemoveFullStealthDeployment(_config.SteamPath);
+                FullStealthService.Cleanup(_config.SteamPath);
             SteamService.Instance.Dispose();
             PluginService.OnApplicationShutdown();
         }

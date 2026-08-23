@@ -1127,7 +1127,6 @@ public partial class MainWindow
         _config.LaunchMode = toggleButton.IsChecked.GetValueOrDefault()
             ? GreenLumaLaunchMode.InjectorStealth
             : GreenLumaLaunchMode.Normal;
-        _config.NoHook = _config.LaunchMode != GreenLumaLaunchMode.Normal;
         ConfigService.Save(_config);
         UpdateStatus();
     }
@@ -1153,9 +1152,7 @@ public partial class MainWindow
                         File.Exists(Path.Combine(steamPath, "Steam.exe")) &&
                         !string.IsNullOrWhiteSpace(greenLumaPath) &&
                         File.Exists(Path.Combine(greenLumaPath,
-                            _config.FullStealthVariant == FullStealthVariant.SteamFamilies
-                                ? "user32SF.dll"
-                                : "user32.dll")) &&
+                            FullStealthService.GetSelectedDllName(_config))) &&
                         Directory.Exists(Path.Combine(greenLumaPath, "AppList"));
             _notificationManager.SetStatusIndicator(
                 ready ? Resources["Success"] as Brush ?? Brushes.Green : Resources["Danger"] as Brush ?? Brushes.Red,
@@ -1202,9 +1199,9 @@ public partial class MainWindow
             TglStealthMode.IsChecked = true;
             TglStealthMode.IsEnabled = false;
 
-            if (!_config.NoHook)
+            if (_config.LaunchMode != GreenLumaLaunchMode.InjectorStealth)
             {
-                _config.NoHook = true;
+                _config.LaunchMode = GreenLumaLaunchMode.InjectorStealth;
                 ConfigService.Save(_config);
             }
         }
@@ -1224,7 +1221,7 @@ public partial class MainWindow
             _notificationManager.SetStatusIndicator(successBrush, "Ready  •  Stealth Mode (Forced)");
         else if (isSamePath)
             _notificationManager.SetStatusIndicator(successBrush, "Ready  •  Normal Mode");
-        else if (_config.NoHook)
+        else if (_config.LaunchMode == GreenLumaLaunchMode.InjectorStealth)
             _notificationManager.SetStatusIndicator(successBrush, "Ready  •  Stealth Mode");
         else
             _notificationManager.SetStatusIndicator(successBrush, "Ready  •  Normal Mode");
